@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>FTP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.5/css/bulma.min.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css" crossorigin="" />
+
+    <script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://unpkg.com/@reactivex/rxjs@6.5.3/dist/global/rxjs.umd.js"></script>
+    <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+    <script defer src="masteries.js"></script>
+
+    <style>
+        #mapid {
+            height: 800px;
+        }
+    </style>
+</head>
+
+<body>
+    <section class="section">
+        <div class="container">
+            <div class="columns">
+
+                <div class="column is-one-third">
+                    <h1 class="title">
+                        Find that POI!
+                    </h1>
+                    <div class="field">
+                        <label class="label">Enter your API token:</label>
+                        <div class="control">
+                            <input id="api-token" class="input" type="text" placeholder="API Token"
+                                value="1F62A8D3-EFBD-834B-B9B3-2AD59123D5AC2F9C6E84-6CEA-4445-B35C-8EF84CBB2DEC">
+                        </div>
+                        <p class="help">Enter a Guild Wars 2 API Token with at least the "progression" permission. You
+                            can create one <a href="https://account.arena.net/applications">here</a>. Leave blank to see
+                            all the mastery points available.</p>
+                    </div>
+                    <div class="control">
+                        <button class="button is-link" onclick="updatePOIs()">Submit</button>
+                    </div>
+                    <br />
+                    <div class="is-size-7">
+                        <b>Note:</b> The GW2 API does not provide icons for masteries, so I had to improvise using the
+                        hero point.
+                    </div>
+                </div>
+                <div id="mapid" class="column"></div>
+            </div>
+    </section>
+    <footer class="footer">
+        <div class="content has-text-centered">
+            <p>
+                Plz send money to tessela.
+            </p>
+        </div>
+    </footer>
+    <script>
+
+        // code based on https://wiki.guildwars2.com/wiki/API:Maps
+        let map;
+        let heroPointIcon;
+
+        function unproject(coord) {
+            return map.unproject(coord, map.getMaxZoom());
+        }
+
+        // Helper function to print clicked coordinates to the log
+        function onMapClick(e) {
+            console.log("You clicked the map at " + map.project(e.latlng, map.getMaxZoom()));
+        }
+
+        // Main map function
+        function createMap() {
+
+            // Adds the leaflet map within the specified element, in this case a div with id="mapdiv"
+            //  Additionally we set the zoom levels to match the tilelayers, and set the coordinate reference system (simple)
+            //  In this case we're using the maximum zoom from Tyria as 7. It would be 6 for The Mists.
+            map = L.map("mapid", {
+                minZoom: 2,
+                maxZoom: 7,
+                crs: L.CRS.Simple
+            });
+
+            heroPointIcon = L.icon({
+                iconUrl: 'https://render.guildwars2.com/file/B4EC6BB3FDBC42557C3CAE0CAA9E57EBF9E462E3/156626.png',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32],
+            });
+
+            // Add map tiles using the [[API:Tile service]]
+            L.tileLayer("https://tiles.guildwars2.com/1/1/{z}/{x}/{y}.jpg").addTo(map);
+
+            // Restrict the area which can be panned to
+            //  In this case we're using the coordinates for the continent of tyria from "https://api.guildwars2.com/v2/continents/1"
+            var continent_dims = [49152, 49152];
+            var mapbounds = new L.LatLngBounds(unproject([0, 0]), unproject(continent_dims)); // northwest, southeast
+            map.setMaxBounds(mapbounds);
+
+            // Set the default viewport position (in this case the midpoint) and zoom (in this case zoom level 1)
+            map.setView(unproject([(continent_dims[0] / 2), (continent_dims[1] / 2)]), 1);
+
+            // Add a tile layer
+            map.addLayer(L.tileLayer("https://tiles.guildwars2.com/1/1/{z}/{x}/{y}.jpg", { minZoom: 0, maxZoom: 7, continuousWorld: true, subdomains: [1, 2, 3, 4], bounds: mapbounds }));
+        }
+
+        createMap();
+
+        // my code
+
+        let markers = [];
+
+        function clearMarkers() {
+            markers.every(item => item.remove());
+            markers = [];
+        }
+
+        function displayMasteries(masteriesToHide) {
+            clearMarkers();
+            const hiddenMasteries = new Set(masteriesToHide);
+            const visibleMasteries = masteries.filter(mastery => !hiddenMasteries.has(mastery.achievement.id))
+
+            markers = visibleMasteries.map(mastery => {
+                const marker = L.marker(unproject(mastery.coordinates), { icon: heroPointIcon, title: mastery.achievement.name });
+                marker.bindPopup(`<b>${mastery.achievement.name}</b><br>${mastery.achievement.requirement}.`);
+                marker.addTo(map);
+                return marker;
+            });
+        }
+
+        function updatePOIs() {
+            clearMarkers();
+            const tokenValue = document.getElementById("api-token").value;
+
+            const url = "https://api.guildwars2.com/v2/account/achievements?access_token=" + tokenValue;
+
+            const fromFetch = rxjs.fetch.fromFetch;
+            const switchMap = rxjs.operators.switchMap;
+            const catchError = rxjs.operators.catchError;
+            const of = rxjs.of;
+            const filter = rxjs.operators.filter;
+            const map = rxjs.operators.map;
+
+            const data$ = fromFetch(url).pipe(
+                switchMap(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        return of([]);
+                    }
+                }),
+                map(achievements => {
+                    return achievements.filter(achievement => achievement.done === true)
+                        .map(achievement => achievement.id)
+                }),
+                catchError(err => {
+                    console.error(err);
+                    return of([])
+                })
+            );
+
+            data$.subscribe({
+                next: result => displayMasteries(result)
+            })
+        }
+    </script>
+</body>
+
+</html>
