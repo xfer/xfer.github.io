@@ -105,7 +105,7 @@
             map.setView(unproject([(continent_dims[0] / 2), (continent_dims[1] / 2)]), 1);
 
             // Add a tile layer
-            map.addLayer(L.tileLayer("https://tiles.guildwars2.com/1/1/{z}/{x}/{y}.jpg", { minZoom: 0, maxZoom: 7, continuousWorld: true, subdomains: [1, 2, 3, 4], bounds: mapbounds }));
+            map.addLayer(L.tileLayer("https://tiles.guildwars2.com/1/11/{z}/{x}/{y}.jpg", { minZoom: 0, maxZoom: 7, continuousWorld: true, subdomains: [1, 2, 3, 4], bounds: mapbounds }));
         }
 
         createMap();
