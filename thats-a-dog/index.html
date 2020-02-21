@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>That's a dog</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script>
+      let model = null;
+      async function predict(dataURL) {
+        const image = new Image();
+        image.addEventListener("load", async function() {
+          const predictions = await model.detect(image, 1);
+
+          if (Array.isArray(predictions) && predictions[0].class === "dog") {
+            alert("That's a dog!");
+          } else {
+            alert("Not a dog.");
+          }
+        });
+
+        image.src = dataURL;
+      }
+
+      function previewFile() {
+        const file = document.querySelector("input[type=file]").files[0];
+        const reader = new FileReader();
+
+        reader.addEventListener(
+          "load",
+          function() {
+            predict(reader.result);
+          },
+          false
+        );
+
+        if (file) {
+          reader.readAsDataURL(file);
+        }
+      }
+
+      async function main() {
+        model = await cocoSsd.load();
+        const filePicker = document.getElementById("filePicker");
+        filePicker.addEventListener("change", previewFile);
+        document.getElementById("loader").style.display = "none";
+        document.getElementById("main").style.display = "block";
+      }
+
+      window.addEventListener("load", main);
+    </script>
+  </head>
+  <body>
+    <div id="loader">Loading model...</div>
+    <div id="main" style="display:none">
+      <input type="file" id="filePicker" />
+    </div>
+  </body>
+</html>
